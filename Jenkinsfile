@@ -1,10 +1,8 @@
 pipeline {
-  agent { label 'slave01' }   // ton agent Windows
-
+  agent { label 'slave_build' }    // ou 'slave01' si c'est le label que tu utilises
   environment {
     DOCKER_IMAGE = "docker.io/samaramri/hello-jenkins:${env.BUILD_NUMBER}"
   }
-
   stages {
     stage('Checkout') {
       steps { checkout scm }
@@ -15,8 +13,8 @@ pipeline {
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds',
                                           usernameVariable: 'DH_USER',
                                           passwordVariable: 'DH_PASS')]) {
-          bat '''
-          echo %DH_PASS% | docker login -u "%DH_USER%" --password-stdin
+          sh '''
+            echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
           '''
         }
       }
@@ -24,19 +22,21 @@ pipeline {
 
     stage('Build Image') {
       steps {
-        bat 'docker build -t "%DOCKER_IMAGE%" .'
+        sh 'docker build -t "$DOCKER_IMAGE" .'
       }
     }
 
     stage('Push Image') {
       steps {
-        bat 'docker push "%DOCKER_IMAGE%"'
+        sh 'docker push "$DOCKER_IMAGE"'
       }
     }
   }
 
   post {
-    always { bat 'docker logout || exit /b 0' }
+    always {
+      sh 'docker logout || true'
+    }
     success { echo "Pushed: ${env.DOCKER_IMAGE}" }
   }
 }

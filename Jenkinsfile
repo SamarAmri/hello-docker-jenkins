@@ -1,38 +1,37 @@
 pipeline {
-  agent { label 'slave01' }    // on force l'exécution sur ton agent connecté
+  agent { label 'slave01' }     // si ton agent s’appelle 'slave01' (sinon mets 'slave_build')
 
   environment {
-    // <-- Ton image locale de l'atelier (vue dans ta capture "docker images")
-    LOCAL_IMAGE   = "samar/alpine:1.0.0"
-
-    // <-- Où on pousse : ton dépôt Docker Hub + un tag = numéro de build
-    REMOTE_IMAGE  = "docker.io/TON_DOCKERHUB_USER/alpine:${env.BUILD_NUMBER}"
+    // <<< ICI: ton namespace Docker Hub + le nom d'image >>>
+    DOCKER_IMAGE = "docker.io/samaramri/hello-jenkins:${env.BUILD_NUMBER}"
   }
 
   stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
     stage('Docker Login') {
       steps {
-        // Utilise le credential créé en atelier Docker (username + access token)
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
-          sh 'echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin'
+          sh '''
+            echo "$DH_PASS" | docker login -u "$DH_USER" --password-stdin
+          '''
         }
       }
     }
 
-    stage('Tag & Push Existing Image') {
-      steps {
-        sh '''
-          # Tag l'image locale vers ton repo Docker Hub
-          docker tag "$LOCAL_IMAGE" "$REMOTE_IMAGE"
-          # Puis pousse-la
-          docker push "$REMOTE_IMAGE"
-        '''
-      }
+    stage('Build Image') {
+      steps { sh 'docker build -t "$DOCKER_IMAGE" .' }
+    }
+
+    stage('Push Image') {
+      steps { sh 'docker push "$DOCKER_IMAGE"' }
     }
   }
 
   post {
     always { sh 'docker logout || true' }
-    success { echo "Pushed: ${env.REMOTE_IMAGE}" }
+    success { echo "Pushed: ${env.DOCKER_IMAGE}" }
   }
 }
